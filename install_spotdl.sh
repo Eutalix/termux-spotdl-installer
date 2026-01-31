@@ -120,7 +120,9 @@ echo -e "Do you want to download and install the ${CYAN}Termux:Widget${NC} app n
 echo -e "This allows you to launch SpotDL directly from your home screen."
 echo -e "${RED}Note: If you installed Termux via F-Droid, you should install the Widget via F-Droid too.${NC}"
 echo ""
-read -p "Download Widget APK from GitHub? [y/N] " -n 1 -r
+
+# Added < /dev/tty to force reading from keyboard, not the script file (curl pipe)
+read -p "Download Widget APK from GitHub? [y/N] " -n 1 -r < /dev/tty
 echo ""
 
 if [[ $REPLY =~ ^[Yy]$ ]]; then
@@ -151,7 +153,6 @@ try:
 except:
     sys.exit(1)
 "
-    # AQUI estava o erro potencial. Garantindo que é 'echo'.
     WIDGET_URL=$(echo "$JSON_RESPONSE" | python3 -c "$GET_APK_URL")
 
     if [ -z "$WIDGET_URL" ]; then
