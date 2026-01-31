@@ -41,21 +41,19 @@ echo -e "${YELLOW}[3/6] Installing SpotDL...${NC}"
 echo -e "${CYAN}Using pre-built wheels from Eutalix/android-pydantic-core...${NC}"
 pip install spotdl --extra-index-url https://eutalix.github.io/android-pydantic-core/ --no-cache-dir
 
-# 4. Configure SpotDL (Generate & Patch)
+# 4. Configure SpotDL
 echo -e "${YELLOW}[4/6] Configuring SpotDL...${NC}"
 
 CONFIG_DIR="$HOME/.config/spotdl"
 CONFIG_FILE="$CONFIG_DIR/config.json"
 mkdir -p "$CONFIG_DIR"
 
-# Step A: Remove old config to prevent interactive prompt "Overwrite? (y/n)"
-rm -f "$CONFIG_FILE"
+# Step A: Run generator, answer "n" (no) if asked to overwrite, and ignore errors
+# This ensures the file exists without deleting user's previous config
+echo "Ensuring base configuration..."
+yes n | spotdl --generate-config >/dev/null 2>&1 || true
 
-# Step B: Generate fresh default config
-echo "Generating default configuration..."
-spotdl --generate-config
-
-# Step C: Patch JSON using Python (Safe & Robust)
+# Step B: Patch JSON using Python (Update Android fields only)
 echo "Applying Android-specific settings..."
 python3 -c "
 import json
@@ -63,31 +61,40 @@ import os
 
 config_path = '$CONFIG_FILE'
 
-try:
-    with open(config_path, 'r') as f:
-        data = json.load(f)
-        
-    # --- Android Patches ---
-    data['output'] = '/sdcard/Music/{artists}/{album}/{artist} - {title}.{output-ext}'
-    data['save_file'] = '/sdcard/Music/spotdl.spotdl'
-    data['web_use_output_dir'] = True
-    data['preload'] = True
-    data['bitrate'] = '320k'
-    data['format'] = 'mp3'
-    
-    # Ensure providers list is robust
-    data['audio_providers'] = ['youtube-music', 'youtube']
-    data['lyrics_providers'] = ['genius', 'musixmatch', 'azlyrics']
+# Default data in case file creation failed entirely
+data = {}
 
+# Load existing config
+if os.path.exists(config_path):
+    try:
+        with open(config_path, 'r') as f:
+            data = json.load(f)
+    except Exception:
+        print('⚠️  Config file corrupted, starting fresh.')
+
+# --- Force Android Settings ---
+# We overwrite only what is necessary for Android/Termux functionality
+updates = {
+    'output': '/sdcard/Music/{artists}/{album}/{artist} - {title}.{output-ext}',
+    'save_file': '/sdcard/Music/spotdl.spotdl',
+    'web_use_output_dir': True,
+    'preload': True,
+    'bitrate': '320k',
+    'format': 'mp3',
+    'audio_providers': ['youtube-music', 'youtube'],
+    'lyrics_providers': ['genius', 'musixmatch', 'azlyrics'],
+    'overwrite': 'skip'
+}
+
+data.update(updates)
+
+try:
     with open(config_path, 'w') as f:
         json.dump(data, f, indent=2)
-    print('✅ Configuration patched successfully.')
+    print(f'✅ Config patched at {config_path}')
 except Exception as e:
-    print(f'❌ Error patching config: {e}')
-    exit(1)
+    print(f'❌ Error saving config: {e}')
 "
-
-echo "Config saved to $CONFIG_FILE"
 
 # 5. Termux:Widget Shortcut Creation
 echo -e "${YELLOW}[5/6] Creating Widget Shortcut...${NC}"
@@ -128,38 +135,31 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     
     JSON_RESPONSE=$(curl -sL -H "User-Agent: TermuxInstaller" "$API_URL")
 
-    # Python parser to find the correct APK
     GET_APK_URL="
 import sys, json
 try:
     data = json.load(sys.stdin)
     assets = data.get('assets', [])
     best_url = ''
-    
     for asset in assets:
         name = asset['name']
         url = asset['browser_download_url']
-        
         if name.endswith('.apk'):
-            # Prefer debug/github version
             if 'github' in name or 'debug' in name:
                 print(url)
                 sys.exit(0)
             best_url = url 
-            
     if best_url:
         print(best_url)
         sys.exit(0)
-        
     sys.exit(1)
-except Exception as e:
+except:
     sys.exit(1)
 "
     WIDGET_URL=$(echo "$JSON_RESPONSE" | python3 -c "$GET_APK_URL")
 
     if [ -z "$WIDGET_URL" ]; then
-        echo -e "${RED}Error: Could not find APK URL in API response.${NC}"
-        echo "Try downloading manually from: https://github.com/termux/termux-widget/releases/latest"
+        echo -e "${RED}Error: Could not find APK URL.${NC}"
     else
         echo "Downloading from: $WIDGET_URL"
         WIDGET_FILE="termux-widget.apk"
