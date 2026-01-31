@@ -49,7 +49,6 @@ CONFIG_FILE="$CONFIG_DIR/config.json"
 mkdir -p "$CONFIG_DIR"
 
 # Step A: Run generator, answer "n" (no) if asked to overwrite, and ignore errors
-# This ensures the file exists without deleting user's previous config
 echo "Ensuring base configuration..."
 yes n | spotdl --generate-config >/dev/null 2>&1 || true
 
@@ -60,11 +59,8 @@ import json
 import os
 
 config_path = '$CONFIG_FILE'
-
-# Default data in case file creation failed entirely
 data = {}
 
-# Load existing config
 if os.path.exists(config_path):
     try:
         with open(config_path, 'r') as f:
@@ -73,7 +69,6 @@ if os.path.exists(config_path):
         print('⚠️  Config file corrupted, starting fresh.')
 
 # --- Force Android Settings ---
-# We overwrite only what is necessary for Android/Termux functionality
 updates = {
     'output': '/sdcard/Music/{artists}/{album}/{artist} - {title}.{output-ext}',
     'save_file': '/sdcard/Music/spotdl.spotdl',
@@ -156,6 +151,7 @@ try:
 except:
     sys.exit(1)
 "
+    # AQUI estava o erro potencial. Garantindo que é 'echo'.
     WIDGET_URL=$(echo "$JSON_RESPONSE" | python3 -c "$GET_APK_URL")
 
     if [ -z "$WIDGET_URL" ]; then
