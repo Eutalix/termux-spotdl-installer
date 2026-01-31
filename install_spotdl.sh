@@ -121,7 +121,6 @@ echo -e "This allows you to launch SpotDL directly from your home screen."
 echo -e "${RED}Note: If you installed Termux via F-Droid, you should install the Widget via F-Droid too.${NC}"
 echo ""
 
-# Added < /dev/tty to force reading from keyboard, not the script file (curl pipe)
 read -p "Download Widget APK from GitHub? [y/N] " -n 1 -r < /dev/tty
 echo ""
 
@@ -142,6 +141,7 @@ try:
         name = asset['name']
         url = asset['browser_download_url']
         if name.endswith('.apk'):
+            # Prefer debug/github version
             if 'github' in name or 'debug' in name:
                 print(url)
                 sys.exit(0)
@@ -153,16 +153,20 @@ try:
 except:
     sys.exit(1)
 "
-    WIDGET_URL=$(echo "$JSON_RESPONSE" | python3 -c "$GET_APK_URL")
+
+    WIDGET_URL=$(echo "$JSON_RESPONSE" | python3 -c "$GET_APK_URL" || true)
 
     if [ -z "$WIDGET_URL" ]; then
         echo -e "${RED}Error: Could not find APK URL.${NC}"
+        echo "Please download manually from GitHub."
     else
-        echo "Downloading from: $WIDGET_URL"
+        echo "Found APK: $WIDGET_URL"
+        echo "Downloading..."
         WIDGET_FILE="termux-widget.apk"
         
         if curl -L -H "User-Agent: TermuxInstaller" -o "$WIDGET_FILE" "$WIDGET_URL" --progress-bar; then
             echo "Launching installer..."
+            # termux-open is required to trigger Android package installer
             termux-open "$WIDGET_FILE"
             echo -e "${GREEN}Please confirm the installation on your screen.${NC}"
         else
